@@ -29,5 +29,6 @@ android {
 }
 
 dependencies {
+    compile 'com.google.android:support-v4:r7'
 }
 apply from: './gradle-mvn-push.gradle'

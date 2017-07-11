@@ -2,10 +2,16 @@ package in.srain.cube.views.ptr;
 
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.support.v4.view.MotionEventCompat;
 import android.util.AttributeSet;
-import android.view.*;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewConfiguration;
+import android.view.ViewGroup;
 import android.widget.Scroller;
 import android.widget.TextView;
+
 import in.srain.cube.views.ptr.indicator.PtrIndicator;
 import in.srain.cube.views.ptr.util.PtrCLog;
 
@@ -55,6 +61,9 @@ public class PtrFrameLayout extends ViewGroup {
     private boolean mPreventForHorizontal = false;
 
     private MotionEvent mLastMoveEvent;
+
+    private static final int INVALID_POINTER = -1;
+    private int mActivePointerId = INVALID_POINTER;
 
     private PtrUIHandlerHook mRefreshCompleteHook;
 
@@ -276,11 +285,12 @@ public class PtrFrameLayout extends ViewGroup {
         if (!isEnabled() || mContent == null || mHeaderView == null) {
             return dispatchTouchEventSupper(e);
         }
-        int action = e.getAction();
+        int action = MotionEventCompat.getActionMasked(e);
         switch (action) {
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 mPtrIndicator.onRelease();
+                mActivePointerId = INVALID_POINTER;
                 if (mPtrIndicator.hasLeftStartPosition()) {
                     if (DEBUG) {
                         PtrCLog.d(LOG_TAG, "call onRelease when user release");
@@ -290,15 +300,12 @@ public class PtrFrameLayout extends ViewGroup {
                         sendCancelEvent();
                         return true;
                     }
-                    return dispatchTouchEventSupper(e);
-                } else {
-                    return dispatchTouchEventSupper(e);
                 }
-
+                break;
             case MotionEvent.ACTION_DOWN:
+                mActivePointerId = e.getPointerId(0);
                 mHasSendCancelEvent = false;
                 mPtrIndicator.onPressDown(e.getX(), e.getY());
-
                 mScrollChecker.abortIfWorking();
 
                 mPreventForHorizontal = false;
@@ -308,9 +315,10 @@ public class PtrFrameLayout extends ViewGroup {
                 dispatchTouchEventSupper(e);
                 return true;
 
-            case MotionEvent.ACTION_MOVE:
+            case MotionEvent.ACTION_MOVE: {
                 mLastMoveEvent = e;
-                mPtrIndicator.onMove(e.getX(), e.getY());
+                int pointerIndex = MotionEventCompat.findPointerIndex(e, mActivePointerId);
+                mPtrIndicator.onMove(e.getX(pointerIndex), e.getY(pointerIndex));
                 float offsetX = mPtrIndicator.getOffsetX();
                 float offsetY = mPtrIndicator.getOffsetY();
 
@@ -341,8 +349,35 @@ public class PtrFrameLayout extends ViewGroup {
                     movePos(offsetY);
                     return true;
                 }
+                break;
+            }
+            case MotionEventCompat.ACTION_POINTER_DOWN: {
+                final int index = MotionEventCompat.getActionIndex(e);
+                mActivePointerId = MotionEventCompat.getPointerId(e, index);
+                int pointerIndex = MotionEventCompat.findPointerIndex(e, mActivePointerId);
+                mPtrIndicator.onFingerPressDown(e.getX(pointerIndex), e.getY(pointerIndex));
+                break;
+            }
+
+            case MotionEventCompat.ACTION_POINTER_UP:
+                onSecondaryPointerUp(e);
+                break;
+
+
         }
         return dispatchTouchEventSupper(e);
+    }
+
+
+    private void onSecondaryPointerUp(MotionEvent ev) {
+        final int pointerIndex = MotionEventCompat.getActionIndex(ev);
+        final int pointerId = MotionEventCompat.getPointerId(ev, pointerIndex);
+        if (pointerId == mActivePointerId) {
+            // This was our active pointer going up. Choose a new
+            // active pointer and adjust accordingly.
+            final int newPointerIndex = pointerIndex == 0 ? 1 : 0;
+            mActivePointerId = MotionEventCompat.getPointerId(ev, newPointerIndex);
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package in.srain.cube.views.ptr.indicator;
 
 import android.graphics.PointF;
+import android.util.Log;
 
 public class PtrIndicator {
 
@@ -70,6 +71,9 @@ public class PtrIndicator {
     public void onPressDown(float x, float y) {
         mIsUnderTouch = true;
         mPressedPos = mCurrentPos;
+        mPtLastMove.set(x, y);
+    }
+    public void onFingerPressDown(float x, float y) {
         mPtLastMove.set(x, y);
     }
 
